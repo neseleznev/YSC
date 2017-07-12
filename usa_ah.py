@@ -15,16 +15,14 @@ import matplotlib
 import matplotlib.dates as plt_dates
 import pylab as plt
 
-AH_CSV_FILE = 'data/stateAHmsk_oldFL.csv'
 
-
-def get_ah():
+def get_ah(ah_csv_file):
     """
     :return: dict, data['dd.mm.year']['State Name'] = absolute humidity
     """
     data = dict()
 
-    with open(AH_CSV_FILE, 'r') as csv_file:
+    with open(ah_csv_file, 'r') as csv_file:
         ah_reader = csv.DictReader(csv_file, delimiter=';')
 
         for row in ah_reader:
@@ -138,14 +136,11 @@ def draw_ah_mean(ah_mean, states):
     plt.show()
     plt.close()
 
-
 if __name__ == '__main__':
     t0 = time.time()
-
-    ah = get_ah()
+    ah = get_ah('data/stateAHmsk_oldFL.csv')
     ah_mean = get_ah_mean(ah)
     # ah_dev = get_ah_deviation(ah, ah_mean)
-
     print(time.time() - t0)
     
     # Graph 1D from Shaman 2010
