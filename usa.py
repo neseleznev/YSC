@@ -16,17 +16,12 @@
     Cheers,
     Jeff"
 """
-
+import csv
 import datetime
 import time
 
-import matplotlib
-import numpy as np
-import pylab as plt
-
-from usa_ah import get_ah, get_ah_mean, get_ah_deviation
-from usa_onset import get_state_resolver, \
-    get_mortality_excess, get_onsets
+from ah import get_ah_mean_for_site, get_ah_mean, get_ah_deviation, draw_ah_mean, plot_average_ah_dev
+from onset import Winter, draw_onset_distribution, get_average_ah_vs_onsets
 
 AH_CSV_FILE = 'data/stateAHmsk_oldFL.csv'
 STATE_CODES_FILE = 'data/NCHS_State_codes.txt'
@@ -36,54 +31,107 @@ MORTALITY_EXCESS_FILE = 'data/WeeklyExcessNew.txt'
 CONTIGUOUS_STATES = [1] + list(range(3, 12)) + list(range(13, 52))
 DATE_SHIFT_RANGE = range(-6 * 7, 4 * 7 + 1)
 THRESHOLDS = [0.005, 0.01, 0.015, 0.02]
+THRESHOLD_COLORS = {0.005: 'b', 0.01: 'g', 0.015: 'r', 0.02: 'c'}
 
 
-def get_average_ah_dev(ah_dev, excess_data, thresholds, state_resolver):
-    average_ah_dev = dict()
+def get_ah(ah_csv_file):
+    """
+    :return: dict, data['dd.mm.year']['State Name'] = absolute humidity
+    """
+    data = dict()
 
+    with open(ah_csv_file, 'r') as csv_file:
+        ah_reader = csv.DictReader(csv_file, delimiter=';')
+
+        for row in ah_reader:
+            if row['Date'].startswith('29.02'):
+                continue  # omit leap year
+
+            date = row['Date']
+            del row['Date']
+            data[date] = row
+
+    return data
+
+
+def get_state_resolver(state_codes_file):
+    """
+    :return: dict, such as
+        dict['42']['acronym'] = 'DC'
+        dict['42']['name'] = 'District of Columbia'
+    """
+    resolver = dict()
+    with open(state_codes_file, 'r') as file:
+        _ = file.readline()  # Header
+        for line in file:
+            code, acronym, *rest = line.split(' ')
+            resolver[int(code)] = {'acronym': acronym,
+                                   'name': ' '.join(rest).strip('\n')}
+    resolver[0] = {'acronym': 'US',
+                   'name': 'Entire USA'}
+    return resolver
+
+
+def get_date_from_week_index(week: int):
+    """
+    Resolve "the first date is January 2-8, 1972." to datetime.date
+    """
+    base_date = datetime.date(1972, 1, 2)
+    return base_date + datetime.timedelta(weeks=week - 1)
+
+
+def get_mortality_excess(mortality_excess_file):
+    data = dict()
+    for idx in range(52):
+        data[idx] = list()
+
+    with open(mortality_excess_file, 'r') as file:
+        for line in file:
+            values = line.split()
+            if not values:
+                continue
+
+            state_code, population, date, mortality_excess = \
+                int(values[0]), int(values[1]), \
+                get_date_from_week_index(int(values[2])), \
+                float(values[-1])
+
+            data[state_code].append(
+                dict(population=population,
+                     date=date,
+                     excess=mortality_excess / 7)
+            )
+    return data
+
+
+def get_onsets(excess_data, thresholds, winter=Winter()):
+    onsets = dict()
     for threshold in thresholds:
-        onsets = get_onsets(excess_data, threshold)
+        onsets[threshold] = dict()
 
-        print('Found %d epidemic for %f threshold' % (
-            sum(len(onsets[state]) for state in CONTIGUOUS_STATES), threshold))
+        for idx in range(52):
+            onsets[threshold][idx] = list()
 
-        relative_ah_devs = []
-        for state in CONTIGUOUS_STATES:
-            state_name = state_resolver[state]['name']
+        for state in range(52):
+            for idx in range(len(excess_data[state])):
+                if idx == 0 or idx == 1:
+                    continue
+                prev2, prev1, current = excess_data[state][idx - 2], \
+                    excess_data[state][idx - 1], excess_data[state][idx]
 
-            for onset in onsets[state]:
-                current_ah_dev = []
+                if current['date'] <= datetime.date(1972, winter.END.month, winter.END.day) or \
+                        current['date'] >= datetime.date(2002, winter.START.month, winter.START.day):
+                    continue
 
-                for day_shift in DATE_SHIFT_RANGE:
-                    date = onset + datetime.timedelta(days=day_shift)
-
-                    if date.month == 2 and date.day == 29 or date.month == 3:
-                        date += datetime.timedelta(days=1)  # TODO figure out how to manage it
-                    current_ah_dev.append(
-                        ah_dev[date.strftime('%d.%m.%Y')][state_name])
-                relative_ah_devs.append(np.array(current_ah_dev))
-
-        relative_ah_devs = np.array(relative_ah_devs)
-        average_ah_dev[threshold] = np.average(relative_ah_devs, axis=0)
-
-    return average_ah_dev
-
-
-def plot_average_ah_dev(average_ah_dev):
-    fig = plt.figure(figsize=(10, 6))
-    matplotlib.rcParams.update({'font.size': 14})
-
-    ax = fig.add_subplot(111)
-    plt.xlabel('Day relative to onset')
-    plt.ylabel('Specific humidity anomaly (kg/kg)')
-    colors = {0.005: 'b', 0.01: 'g', 0.015: 'r', 0.02: 'c'}
-
-    for threshold, average in average_ah_dev.items():
-        plt.plot(DATE_SHIFT_RANGE, average,
-                 colors.get(threshold, 'k') + '-', label=str(threshold))
-
-    plt.legend(loc='best', fancybox=True, shadow=True)
-    plt.show()
+                if prev2['excess'] >= threshold and prev1['excess'] >= threshold \
+                        and winter.is_winter(current['date']):
+                    # Cutoff second epidemic in the same winter-time
+                    if onsets[threshold][state] and current['date'] - onsets[threshold][state][-1] < \
+                            datetime.timedelta(days=winter.days_count):
+                        continue
+                    onsets[threshold][state].append(current['date'])
+                    continue
+    return onsets
 
 
 def main():
@@ -93,13 +141,78 @@ def main():
     ah_dev = get_ah_deviation(ah, ah_mean)
 
     excess_data = get_mortality_excess(MORTALITY_EXCESS_FILE)
+    onsets = get_onsets(excess_data, THRESHOLDS)
 
-    average_ah_dev = get_average_ah_dev(
-        ah_dev, excess_data, THRESHOLDS, state_resolver)
+    average_ah_dev = get_average_ah_vs_onsets(
+        ah_dev, onsets, CONTIGUOUS_STATES, THRESHOLDS,
+        DATE_SHIFT_RANGE, state_resolver)
 
-    plot_average_ah_dev(average_ah_dev)
+    plot_average_ah_dev(average_ah_dev, THRESHOLD_COLORS,
+                        DATE_SHIFT_RANGE, results_folder='results/usa')
+
+
+def test_parser():
+    """
+    Parse humidity data, draw Figure 1D from Shaman, 2010 article
+    """
+    ah = get_ah('data/stateAHmsk_oldFL.csv')
+    ah_mean = get_ah_mean(ah)
+    # ah_dev = get_ah_deviation(ah, ah_mean)
+
+    # Graph 1D from Shaman 2010
+    draw_ah_mean(
+        ah_mean,
+        sites=['Arizona', 'Florida', 'Illinois', 'New York', 'Washington'],
+        colors={'Arizona': 'b', 'Florida': 'g', 'Illinois': 'r',
+                'New York': 'c', 'Washington': 'm'}
+    )
+
+
+def onset_distribution():
+    excess_data = get_mortality_excess(MORTALITY_EXCESS_FILE)
+    onsets = get_onsets(excess_data, [0.005])
+    draw_onset_distribution(onsets[0.005], CONTIGUOUS_STATES)
+
+
+def winter_range_investigation():
+    state_resolver = get_state_resolver(STATE_CODES_FILE)
+    ah = get_ah(AH_CSV_FILE)
+    ah_mean = get_ah_mean(ah)
+    ah_dev = get_ah_deviation(ah, ah_mean)
+
+    excess_data = get_mortality_excess(MORTALITY_EXCESS_FILE)
+
+    for params in ((12, 2),
+                   (12, 3), (11, 2),
+                   (11, 3),
+                   (11, 4), (10, 3),
+                   (10, 4),
+                   (10, 5), (9, 4),
+                   (9, 5),):
+        winter = Winter()
+        winter.START = datetime.date(winter.START.year, params[0], 1)
+        if params[1] in [10, 12, 1, 3, 5]:
+            last_day = 31
+        elif params[1] in [9, 11, 4]:
+            last_day = 30
+        else:  # 2 (February 1972)
+            last_day = 29
+        winter.END = datetime.date(winter.END.year, params[1], last_day)
+
+        onsets = get_onsets(excess_data, THRESHOLDS, winter)
+
+        average_ah_dev = get_average_ah_vs_onsets(
+            ah_dev, onsets, CONTIGUOUS_STATES, THRESHOLDS,
+            DATE_SHIFT_RANGE, state_resolver)
+
+        plot_average_ah_dev(average_ah_dev, THRESHOLD_COLORS,
+                            DATE_SHIFT_RANGE, winter,
+                            'results/winter_range_usa')
 
 if __name__ == '__main__':
     t0 = time.time()
+    # test_parser()
+    # onset_distribution()
+    # winter_range_investigation()
     main()
     print('Time elapsed: %.2f sec' % (time.time() - t0))

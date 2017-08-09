@@ -1,45 +1,23 @@
 #!/usr/env/bin python3
 # -*- coding: utf8 -*-
 # Nikita Seleznev, 2017
-"""
-    Parse humidity data, draw Figure 1D from Shaman, 2010 article
-"""
 
 import copy
 from collections import OrderedDict
-import csv
 import datetime
-import time
+import os
 
 import matplotlib
 import matplotlib.dates as plt_dates
 import pylab as plt
 
-
-def get_ah(ah_csv_file):
-    """
-    :return: dict, data['dd.mm.year']['State Name'] = absolute humidity
-    """
-    data = dict()
-
-    with open(ah_csv_file, 'r') as csv_file:
-        ah_reader = csv.DictReader(csv_file, delimiter=';')
-
-        for row in ah_reader:
-            if row['Date'].startswith('29.02'):
-                continue  # omit leap year
-
-            date = row['Date']
-            del row['Date']
-            data[date] = row
-
-    return data
+from onset import Winter
 
 
 def get_ah_mean(ah):
     """
     :param ah: dict, dict['dd.mm.year']['State Name'] = absolute humidity
-    :return: dict, dict['dd.mm']['State Name'] = 31y mean value of humidity
+    :return: dict, dict['dd.mm']['State Name'] = all-time mean humidity
         for that date
     """
     ah_mean = OrderedDict()
@@ -81,19 +59,22 @@ def get_ah_deviation(ah, ah_mean):
     return ah_deviation
 
 
-def get_ah_mean_for_state(ah_mean, state_name):
+def get_ah_mean_for_site(ah_mean, cite_name):
     result = []
 
-    for date, info in ah_mean.items():
-        for state, value in info.items():
-            if state != state_name:
+    for date, info in sorted(
+            ah_mean.items(),
+            key=lambda x: int(x[0][0:2]) + 31*int(x[0][3:5])
+    ):
+        for site, value in info.items():
+            if site != cite_name:
                 continue
             result.append(value)
     return result
 
 
-def draw_ah_mean(ah_mean, states):
-    """AH' for some states"""
+def draw_ah_mean(ah_mean, sites, colors):
+    """AH' for some sites (states for USA, cities for Russia)"""
     fig = plt.figure(figsize=(10, 6))
     matplotlib.rcParams.update({'font.size': 14})
 
@@ -105,11 +86,10 @@ def draw_ah_mean(ah_mean, states):
     date_range = plt_dates.drange(date_first, date_last, datetime.timedelta(days=1))
 
     # DATES on Ox
-    colors = {'Arizona': 'b', 'Florida': 'g', 'Illinois': 'r', 'New York': 'c', 'Washington': 'm'}
-    for state in states:
+    for site in sites:
         plt.plot_date(date_range,
-                      get_ah_mean_for_state(ah_mean, state),
-                      colors.get(state, 'k') + '-', label=state, linewidth=2.0)
+                      get_ah_mean_for_site(ah_mean, site),
+                      colors.get(site, 'k') + '-', label=site, linewidth=2.0)
     # plt.plot_date(date_range[delta: delta + len(y_real)],
     #               y_real,
     #               "bo", label='Data', markersize=6)
@@ -136,13 +116,23 @@ def draw_ah_mean(ah_mean, states):
     plt.show()
     plt.close()
 
-if __name__ == '__main__':
-    t0 = time.time()
-    ah = get_ah('data/stateAHmsk_oldFL.csv')
-    ah_mean = get_ah_mean(ah)
-    # ah_dev = get_ah_deviation(ah, ah_mean)
-    print(time.time() - t0)
-    
-    # Graph 1D from Shaman 2010
-    draw_ah_mean(ah_mean, ['Arizona', 'Florida', 'Illinois', 'New York', 'Washington'])
 
+def plot_average_ah_dev(average_ah_dev, colors, date_shift_range,
+                        winter=Winter(), results_folder='.'):
+    fig = plt.figure(figsize=(10, 6))
+    matplotlib.rcParams.update({'font.size': 14})
+
+    fig.add_subplot(111)
+    plt.xlabel('Day relative to onset')
+    plt.ylabel('Specific humidity anomaly (kg/kg)')
+
+    for threshold, average in average_ah_dev.items():
+        plt.plot(date_shift_range, average,
+                 colors.get(threshold, 'k') + '-', label=str(threshold))
+
+    plt.legend(loc='best', fancybox=True, shadow=True)
+    # plt.show()
+    os.makedirs(results_folder, exist_ok=True)
+    filename = '%s/figure_winter%d-%d.png' % (
+        results_folder, winter.START.month, winter.END.month,)
+    plt.savefig(filename, bbox_inches='tight')
