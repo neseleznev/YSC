@@ -29,6 +29,11 @@ MORTALITY_EXCESS_FILE = 'data/WeeklyExcessNew.txt'
 
 # Pass Entire US, Alaska, and Hawaii
 CONTIGUOUS_STATES = [1] + list(range(3, 12)) + list(range(13, 52))
+# CONTIGUOUS_STATES = [3, 6, 29, 32, 45]  # south-west
+# CONTIGUOUS_STATES = [7, 8, 9, 20, 21, 22, 30, 31, 33, 39, 40, 46, 49]  # north-east
+# CONTIGUOUS_STATES = [1, 4, 10, 11, 18, 19, 34, 41, 43, 47]  # bottom, Gulf region
+# CONTIGUOUS_STATES = [5, 13, 14, 15, 16, 17, 23, 24, 25, 26, 27, 28,
+#                      35, 36, 37, 38, 42, 44, 48, 50, 51]  # the rest
 DATE_SHIFT_RANGE = range(-6 * 7, 4 * 7 + 1)
 THRESHOLDS = [0.005, 0.01, 0.015, 0.02]
 THRESHOLD_COLORS = {0.005: 'b', 0.01: 'g', 0.015: 'r', 0.02: 'c'}
@@ -57,8 +62,8 @@ def get_ah(ah_csv_file):
 def get_state_resolver(state_codes_file):
     """
     :return: dict, such as
-        dict['42']['acronym'] = 'DC'
-        dict['42']['name'] = 'District of Columbia'
+        dict[42]['acronym'] = 'DC'
+        dict[42]['name'] = 'District of Columbia'
     """
     resolver = dict()
     with open(state_codes_file, 'r') as file:
@@ -148,7 +153,8 @@ def main():
         DATE_SHIFT_RANGE, state_resolver)
 
     plot_average_ah_dev(average_ah_dev, THRESHOLD_COLORS,
-                        DATE_SHIFT_RANGE, results_folder='results/usa')
+                        DATE_SHIFT_RANGE,
+                        save_to_file='results/usa/figure.png')
 
 
 def test_parser():
@@ -205,14 +211,59 @@ def winter_range_investigation():
             ah_dev, onsets, CONTIGUOUS_STATES, THRESHOLDS,
             DATE_SHIFT_RANGE, state_resolver)
 
+        filename = 'results/winter_range_usa/figure_winter%d-%d.png' % (
+            winter.START.month, winter.END.month
+        )
         plot_average_ah_dev(average_ah_dev, THRESHOLD_COLORS,
-                            DATE_SHIFT_RANGE, winter,
-                            'results/winter_range_usa')
+                            DATE_SHIFT_RANGE, save_to_file=filename)
+
+
+def distinct_states():
+    state_resolver = get_state_resolver(STATE_CODES_FILE)
+    ah = get_ah(AH_CSV_FILE)
+    ah_mean = get_ah_mean(ah)
+    ah_dev = get_ah_deviation(ah, ah_mean)
+
+    excess_data = get_mortality_excess(MORTALITY_EXCESS_FILE)
+    onsets = get_onsets(excess_data, THRESHOLDS)
+
+    deeps = dict()  # state_code: ah
+    deep_level = -0.0003
+    anomaly_peaks = [-19, -18, -17, -11, -10, -9]
+
+    for state in [1] + list(range(3, 12)) + list(range(13, 52)):
+        CONTIGUOUS_STATES = [state]
+
+        average_ah_dev = get_average_ah_vs_onsets(
+            ah_dev, onsets, CONTIGUOUS_STATES, THRESHOLDS,
+            DATE_SHIFT_RANGE, state_resolver)
+
+        for threshold, average in average_ah_dev.items():
+            idxs = [day_x - DATE_SHIFT_RANGE[0]
+                   for day_x in anomaly_peaks]
+            deep = min(average[idx] for idx in idxs)
+            if deep < deep_level:
+                if state in deeps:
+                    deeps[state] = min(deep, deeps[state])
+                else:
+                    deeps[state] = deep
+        # plot_average_ah_dev(
+        #     average_ah_dev, THRESHOLD_COLORS, DATE_SHIFT_RANGE,
+        #     title=state_resolver[state]['name'],
+        #     save_to_file='results/usa_distinct/figure_state%s.png' %
+        #                  state_resolver[state]['acronym'])
+
+    for state, deep in sorted(deeps.items(), key=lambda x: x[1]):
+        print('Deep level %f in %s state (%d)' % (
+            deep, state_resolver[state]['acronym'], state)
+        )
+
 
 if __name__ == '__main__':
     t0 = time.time()
     # test_parser()
     # onset_distribution()
     # winter_range_investigation()
+    # distinct_states()
     main()
     print('Time elapsed: %.2f sec' % (time.time() - t0))

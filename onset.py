@@ -3,7 +3,6 @@
 # Nikita Seleznev, 2017
 
 import datetime
-import time
 
 import numpy as np
 
@@ -64,8 +63,14 @@ def get_average_ah_vs_onsets(ah_dev, onsets, sites, thresholds,
     average_ah_dev = dict()
 
     for threshold in thresholds:
-        print('Found %d epidemic for %f threshold' % (
-            sum(len(onsets[threshold][site]) for site in sites), threshold))
+        all_onsets = []
+        for site in sites:
+            for date in onsets[threshold][site]:
+                all_onsets.append(date.strftime("%d.%m.%Y"))
+
+        print('Found %d epidemic for %f threshold: %s' % (
+            sum(len(onsets[threshold][site]) for site in sites), threshold,
+            str(all_onsets)))
 
         relative_ah_devs = []
         for site in sites:

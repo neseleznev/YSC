@@ -11,8 +11,6 @@ import matplotlib
 import matplotlib.dates as plt_dates
 import pylab as plt
 
-from onset import Winter
-
 
 def get_ah_mean(ah):
     """
@@ -118,21 +116,25 @@ def draw_ah_mean(ah_mean, sites, colors):
 
 
 def plot_average_ah_dev(average_ah_dev, colors, date_shift_range,
-                        winter=Winter(), results_folder='.'):
+                        title=None, save_to_file=None):
     fig = plt.figure(figsize=(10, 6))
     matplotlib.rcParams.update({'font.size': 14})
 
     fig.add_subplot(111)
+    if title:
+        plt.title(title)
     plt.xlabel('Day relative to onset')
     plt.ylabel('Specific humidity anomaly (kg/kg)')
 
     for threshold, average in average_ah_dev.items():
         plt.plot(date_shift_range, average,
-                 colors.get(threshold, 'k') + '-', label=str(threshold))
+                 colors.get(threshold, '') + '-', label=str(threshold))
 
     plt.legend(loc='best', fancybox=True, shadow=True)
-    # plt.show()
-    os.makedirs(results_folder, exist_ok=True)
-    filename = '%s/figure_winter%d-%d.png' % (
-        results_folder, winter.START.month, winter.END.month,)
-    plt.savefig(filename, bbox_inches='tight')
+
+    if save_to_file:
+        os.makedirs(os.path.dirname('./' + save_to_file), exist_ok=True)
+        plt.savefig(save_to_file, bbox_inches='tight')
+    else:
+        plt.show()
+    plt.close()
