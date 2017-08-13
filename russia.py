@@ -11,10 +11,10 @@ import time
 from ah import get_ah_mean, get_ah_deviation, plot_average_ah_dev, draw_ah_mean
 from onset import get_average_ah_vs_onsets, Winter
 
-AH_FILE_PATTERN = 'data/flu_dbase_%s.txt'
-PARIS_POPULATION_CSV = 'data/population_paris.csv'
+AH_FILE_PATTERN = 'data/flu_dbase/%s.txt'
+POPULATION_CSV_PATTERN = 'data/population/%s.csv'
 CITIES = ['spb', 'msk', 'nsk', ]
-PARIS = ['paris_abs', ]
+PARIS = ['paris', ]
 DATE_SHIFT_RANGE = range(-6 * 7, 4 * 7 + 1)
 THRESHOLDS = [0.005, 0.01, 0.015, 0.02]
 THRESHOLD_COLORS = {0.005: 'b', 0.01: 'g', 0.015: 'r', 0.02: 'c'}
@@ -30,7 +30,7 @@ def get_city_resolver():
         'spb': {'acronym': 'SPB', 'name': 'Saint Petersburg'},
         'msk': {'acronym': 'MSK', 'name': 'Moscow'},
         'nsk': {'acronym': 'NSK', 'name': 'Novosibirsk'},
-        'paris_abs': {'acronym': 'PAR', 'name': 'Paris'},
+        'paris': {'acronym': 'PAR', 'name': 'Paris'},
     }
     return resolver
 
@@ -200,6 +200,33 @@ def get_onsets_by_morbidity(excess_data, thresholds, winter=Winter()):
     return onsets
 
 
+def get_onsets_by_epidemiologists(cities, ah_file_pattern, thresholds):
+    data = dict()
+    for city_code in cities:
+        data[city_code] = list()
+
+        is_epidemic_prev = False
+
+        with open(ah_file_pattern % city_code, 'r') as csv_file:
+            for row in csv.DictReader(csv_file, delimiter=' '):
+                date = datetime.datetime.strptime(row['Date'], "%Y%m%d").date()
+                monday = date - datetime.timedelta(days=date.weekday())
+                is_epidemic = int(row['IsEpidemic']) == 1
+
+                if is_epidemic:
+                    if not is_epidemic_prev:
+                        data[city_code].append(monday)
+                        is_epidemic_prev = True
+                else:
+                    is_epidemic_prev = False
+
+    # Dummy wrapper for compatibility
+    wrapper = dict()
+    for threshold in thresholds:
+        wrapper[threshold] = data
+    return wrapper
+
+
 def test_parser():
     """
     Parse humidity data, draw a la Figure 1D from Shaman, 2010 article
@@ -219,7 +246,7 @@ def test_parser():
 
 def main_paris():
     state_resolver = get_city_resolver()
-    population = get_population(PARIS_POPULATION_CSV)
+    population = get_population(POPULATION_CSV_PATTERN % PARIS[0])
 
     """
     Parameters
@@ -262,8 +289,32 @@ def main_paris():
                         DATE_SHIFT_RANGE, save_to_file=filename)
 
 
+def rf_epidemiologists():
+    # CITIES = ['spb', ]
+    THRESHOLDS = [0]
+
+    city_resolver = get_city_resolver()
+    ah = get_ah(CITIES)
+    ah_mean = get_ah_mean(ah)
+    ah_dev = get_ah_deviation(ah, ah_mean)
+
+    onsets = get_onsets_by_epidemiologists(
+        CITIES, AH_FILE_PATTERN, THRESHOLDS)
+
+    average_ah_dev = get_average_ah_vs_onsets(
+        ah_dev, onsets, CITIES, THRESHOLDS,
+        DATE_SHIFT_RANGE, city_resolver)
+
+    title = ','.join(CITIES) if len(CITIES) > 1 \
+        else city_resolver[CITIES[0]]['name']
+    filename = 'results/russia/epidemiologists/%s.png' % title
+    plot_average_ah_dev(average_ah_dev, THRESHOLD_COLORS, DATE_SHIFT_RANGE,
+                        title=title, save_to_file=filename)
+
+
 if __name__ == '__main__':
     t0 = time.time()
     # test_parser()
-    main_paris()
+    # main_paris()
+    rf_epidemiologists()
     print('Time elapsed: %.2f sec' % (time.time() - t0))
