@@ -35,16 +35,19 @@ def get_city_resolver():
     return resolver
 
 
-def get_population(population_csv):
+def get_population(cities):
     """
-    :type population_csv: str, csv filename (Year;Population)
-    :return: dict[int] = int, data[year] = population
+    :param cities: list of strings, ['paris', 'spb'] for csv filename pattern
+        in format (Year;Population)
+    :return: dict[str] = {int: int}, for example
+        data['paris'][1982] = 10073059
     """
     data = dict()
-
-    with open(population_csv, 'r') as csv_file:
-        for row in csv.DictReader(csv_file, delimiter=';'):
-            data[int(row['Year'])] = int(row['Population'])
+    for city in cities:
+        data[city] = dict()
+        with open(POPULATION_CSV_PATTERN % city, 'r') as csv_file:
+            for row in csv.DictReader(csv_file, delimiter=';'):
+                data[city][int(row['Year'])] = int(row['Population'])
     return data
 
 
@@ -74,7 +77,7 @@ def get_ah(cities):
     return data
 
 
-def get_weekly_morbidity(cities):
+def get_daily_morbidity(cities):
     """
     :return: dict, dict['City Code']['dd.mm.year'] = absolute morbidity
     """
@@ -84,11 +87,10 @@ def get_weekly_morbidity(cities):
 
         with open(AH_FILE_PATTERN % city_code, 'r') as csv_file:
             for row in csv.DictReader(csv_file, delimiter=' '):
-                date = datetime.datetime.strptime(row['Date'], "%Y%m%d").date()
                 morbidity = int(row['Incidence'])
 
-                monday = date - datetime.timedelta(days=date.weekday())
-                date_str = '%02d.%02d.%04d' % (monday.day, monday.month, monday.year)
+                date = datetime.datetime.strptime(row['Date'], "%Y%m%d").date()
+                date_str = '%02d.%02d.%04d' % (date.day, date.month, date.year)
 
                 if date_str not in data[city_code]:
                     data[city_code][date_str] = morbidity
@@ -144,25 +146,34 @@ def get_morbidity_excess(morbidity, morbidity_mean):
     return morbidity_deviation
 
 
-def get_relative_morbidity_excess(morbidity, morbidity_mean, population):
+def get_relative_weekly_morbidity_excess(morbidity_excess, population):
     """
-    Relative morbidity is morbidity / 100,000 people
-    :param morbidity: dict, data['City Code']['dd.mm.year'] = abs morbidity
-    :param morbidity_mean: dict, dict['City Code']['dd.mm'] = mean morbidity
-        for that date
-    :param population: dict[int] = int, dict[x] = y, population in this year
-    :return: dict, data['City Code']['dd.mm.year'] = absolute morbidity
-        deviation from all-time mean value for that date
+    Transform Morbidity / 100,000 people week by week
+    :param morbidity_excess: dict, data['City Code']['dd.mm.year'] = absolute
+        morbidity deviation from all-time mean value for that date
+    :param population: dict[str] = {int: int}, dict['paris'][1982] = 10073059,
+        city's population in this year
+    :return: dict, data['City Code']['dd.mm.year'] = absolute weekly morbidity
+        deviation from all-time mean value for that date (only for mondays)
     """
-    morbidity_deviation = copy.deepcopy(morbidity)
-    for city, info in morbidity.items():
-        for date, mor in info.items():
-            abs_deviation = \
-                float(morbidity[city][date]) - morbidity_mean[city][date[:5]]
-            morbidity_deviation[city][date] = \
-                abs_deviation / population[int(date[6:10])] * 100000
+    weekly_morbidity = dict()
+    for city, info in morbidity_excess.items():
+        weekly_morbidity[city] = OrderedDict()
 
-    return morbidity_deviation
+        for date_str, mor in info.items():
+            date = datetime.datetime.strptime(date_str, "%d.%m.%Y").date()
+            monday = date - datetime.timedelta(days=date.weekday())
+
+            relative_mor = mor * (100000 / population[city][date.year])
+            monday_str = '%02d.%02d.%04d' % (
+                monday.day, monday.month, monday.year)
+
+            if monday not in weekly_morbidity[city]:
+                weekly_morbidity[city][monday_str] = relative_mor
+            else:
+                weekly_morbidity[city][monday_str] += relative_mor
+
+    return weekly_morbidity
 
 
 def get_onsets_by_morbidity(excess_data, thresholds, winter=Winter()):
@@ -246,15 +257,15 @@ def test_parser():
 
 def main_paris():
     state_resolver = get_city_resolver()
-    population = get_population(POPULATION_CSV_PATTERN % PARIS[0])
+    population = get_population(PARIS)
 
     """
     Parameters
     """
     # THRESHOLDS = [-1000, 5, 10, 50, 100, 500, 750, ]
     # THRESHOLDS = [0, 5, 9, 25, 35, 40, 45, 50, ]
-    # THRESHOLDS = [9, 10, 20, 30, 40, 50, ]
-    THRESHOLDS = [9, 10, 20, 30, 40, 50]
+    THRESHOLDS = [9, 10, 20, 30, 40, 50, ]
+    # THRESHOLDS = [9, 10, 20, 30, 40, 50]
     # THRESHOLDS = [0, 25, 50, 75, 100, ]
     # THRESHOLDS = [10, 20, 30, 40, 50, 60, 70, 80]
 
@@ -263,17 +274,19 @@ def main_paris():
     #     last_day = 31
     # elif params[1] in [9, 11, 4]:
     #     last_day = 30
-    winter.START = datetime.date(winter.START.year, 11, 1)
-    winter.END = datetime.date(winter.END.year, 3, 31)
+    winter.START = datetime.date(winter.START.year, 10, 1)
+    winter.END = datetime.date(winter.END.year, 4, 30)
 
     ah = get_ah(PARIS)
     ah_mean = get_ah_mean(ah)
     ah_dev = get_ah_deviation(ah, ah_mean)
 
-    morbidity = get_weekly_morbidity(PARIS)
+    morbidity = get_daily_morbidity(PARIS)
     morbidity_mean = get_morbidity_mean(morbidity)
-    excess_data = get_relative_morbidity_excess(
-        morbidity, morbidity_mean, population)
+    morbidity_excess = get_morbidity_excess(
+        morbidity, morbidity_mean)
+    excess_data = get_relative_weekly_morbidity_excess(
+        morbidity_excess, population)
 
     onsets = get_onsets_by_morbidity(excess_data, THRESHOLDS, winter=winter)
 
@@ -281,7 +294,7 @@ def main_paris():
         ah_dev, onsets, PARIS, THRESHOLDS,
         DATE_SHIFT_RANGE, state_resolver)
 
-    filename = 'results/paris/figure_winter%d-%d_threshold%s.png' % (
+    filename = 'results/paris2/figure_winter%d-%d_threshold%s.png' % (
         winter.START.month, winter.END.month,
         max(average_ah_dev.keys())
     )
@@ -312,9 +325,54 @@ def rf_epidemiologists():
                         title=title, save_to_file=filename)
 
 
+def main():
+    """
+    Parameters
+    """
+    THRESHOLDS = [0, 5, 10, 15, 20]
+    # CITIES = ['spb']
+    winter = Winter()
+    # if params[1] in [10, 12, 1, 3, 5]:
+    #     last_day = 31
+    # elif params[1] in [9, 11, 4]:
+    #     last_day = 30
+    winter.START = datetime.date(winter.START.year, 11, 1)
+    winter.END = datetime.date(winter.END.year, 3, 31)
+
+    city_resolver = get_city_resolver()
+    population = get_population(CITIES)
+
+    ah = get_ah(CITIES)
+    ah_mean = get_ah_mean(ah)
+    ah_dev = get_ah_deviation(ah, ah_mean)
+
+    morbidity = get_daily_morbidity(CITIES)
+    morbidity_mean = get_morbidity_mean(morbidity)
+    morbidity_excess = get_morbidity_excess(
+        morbidity, morbidity_mean)
+    excess_data = get_relative_weekly_morbidity_excess(
+        morbidity_excess, population)
+
+    onsets = get_onsets_by_morbidity(excess_data, THRESHOLDS, winter=winter)
+
+    average_ah_dev = get_average_ah_vs_onsets(
+        ah_dev, onsets, CITIES, THRESHOLDS,
+        DATE_SHIFT_RANGE, city_resolver)
+
+    title = ','.join(CITIES) if len(CITIES) > 1 \
+        else city_resolver[CITIES[0]]['name']
+    filename = 'results/russia/morbidity/%s_winter%d-%d_threshold%s-%s.png' % (
+        title, winter.START.month, winter.END.month,
+        min(average_ah_dev.keys()), max(average_ah_dev.keys())
+    )
+    plot_average_ah_dev(average_ah_dev, THRESHOLD_COLORS,
+                        DATE_SHIFT_RANGE, title=title, save_to_file=filename)
+
+
 if __name__ == '__main__':
     t0 = time.time()
     # test_parser()
+    # rf_epidemiologists()
     # main_paris()
-    rf_epidemiologists()
+    main()
     print('Time elapsed: %.2f sec' % (time.time() - t0))
