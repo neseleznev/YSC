@@ -21,7 +21,7 @@ import datetime
 import time
 
 from ah import get_ah_mean_for_site, get_ah_mean, get_ah_deviation, draw_ah_mean, plot_average_ah_dev
-from onset import Winter, draw_onset_distribution, get_average_ah_vs_onsets
+from onset import Winter, draw_onset_distribution_by_week, get_average_ah_vs_onsets
 
 AH_CSV_FILE = 'data/stateAHmsk_oldFL.csv'
 STATE_CODES_FILE = 'data/NCHS_State_codes.txt'
@@ -177,7 +177,10 @@ def test_parser():
 def onset_distribution():
     excess_data = get_mortality_excess(MORTALITY_EXCESS_FILE)
     onsets = get_onsets(excess_data, [0.005])
-    draw_onset_distribution(onsets[0.005], CONTIGUOUS_STATES)
+    draw_onset_distribution_by_week(
+        onsets[0.005], CONTIGUOUS_STATES,
+        title='Epidemic number distribution in contiguous US',
+        save_to_file='results/onsets/usa_all_contiguous.png')
 
 
 def winter_range_investigation():
@@ -262,8 +265,8 @@ def distinct_states():
 if __name__ == '__main__':
     t0 = time.time()
     # test_parser()
-    # onset_distribution()
+    onset_distribution()
     # winter_range_investigation()
     # distinct_states()
-    main()
+    # main()
     print('Time elapsed: %.2f sec' % (time.time() - t0))

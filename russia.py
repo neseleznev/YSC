@@ -9,7 +9,7 @@ import datetime
 import time
 
 from ah import get_ah_mean, get_ah_deviation, plot_average_ah_dev, draw_ah_mean
-from onset import get_average_ah_vs_onsets, Winter
+from onset import get_average_ah_vs_onsets, Winter, draw_onset_distribution_by_week
 
 AH_FILE_PATTERN = 'data/flu_dbase/%s.txt'
 POPULATION_CSV_PATTERN = 'data/population/%s.csv'
@@ -369,10 +369,96 @@ def main():
                         DATE_SHIFT_RANGE, title=title, save_to_file=filename)
 
 
+def onset_distribution_epidemiologists():
+    winter = Winter()
+    winter.START = datetime.date(winter.START.year, 10, 1)
+    winter.END = datetime.date(winter.END.year, 3, 31)
+
+    onsets = get_onsets_by_epidemiologists(
+        CITIES, AH_FILE_PATTERN, [0])
+
+    filename = 'results/onsets/russia_epidemiologists.png'
+    draw_onset_distribution_by_week(
+        onsets[0], CITIES, winter=winter,
+        title='Epidemic number distribution in Russia\n'
+              'given by Influenza Institute (October — March)',
+        save_to_file=filename)
+
+
+def onset_distribution():
+    # Params
+    THRESHOLDS = [10]
+    winter = Winter()
+    # if params[1] in [10, 12, 1, 3, 5]:
+    #     last_day = 31
+    # elif params[1] in [9, 11, 4]:
+    #     last_day = 30
+    winter.START = datetime.date(winter.START.year, 10, 1)
+    winter.END = datetime.date(winter.END.year, 3, 31)
+    # End params
+
+    population = get_population(CITIES)
+
+    morbidity = get_daily_morbidity(CITIES)
+    morbidity_mean = get_morbidity_mean(morbidity)
+    morbidity_excess = get_morbidity_excess(
+        morbidity, morbidity_mean)
+    excess_data = get_relative_weekly_morbidity_excess(
+        morbidity_excess, population)
+
+    onsets = get_onsets_by_morbidity(excess_data, THRESHOLDS, winter=winter)
+
+    filename = f'results/onsets/russia' \
+               f'_winter{winter.START.month}-{winter.END.month}' \
+               f'_threshold{THRESHOLDS[0]}.png'
+    draw_onset_distribution_by_week(
+        onsets[THRESHOLDS[0]], CITIES,
+        winter=winter,
+        title='Epidemic number distribution in Russia',
+        save_to_file=filename)
+
+
+def onset_distribution_paris():
+    # Params
+    THRESHOLDS = [5]
+    winter = Winter()
+    # if params[1] in [10, 12, 1, 3, 5]:
+    #     last_day = 31
+    # elif params[1] in [9, 11, 4]:
+    #     last_day = 30
+    winter.START = datetime.date(winter.START.year, 10, 1)
+    winter.END = datetime.date(winter.END.year, 3, 31)
+    # End params
+
+    population = get_population(PARIS)
+
+    morbidity = get_daily_morbidity(PARIS)
+    morbidity_mean = get_morbidity_mean(morbidity)
+    morbidity_excess = get_morbidity_excess(
+        morbidity, morbidity_mean)
+    excess_data = get_relative_weekly_morbidity_excess(
+        morbidity_excess, population)
+
+    onsets = get_onsets_by_morbidity(excess_data, THRESHOLDS, winter=winter)
+
+    filename = f'results/onsets/paris' \
+               f'_winter{winter.START.month}-{winter.END.month}' \
+               f'_threshold{THRESHOLDS[0]}.png'
+    draw_onset_distribution_by_week(
+        onsets[THRESHOLDS[0]], PARIS,
+        winter=winter,
+        title='Epidemic number distribution in Paris,\n'
+              'determined with mordibity deviation (October — March)',
+        save_to_file=filename)
+
+
 if __name__ == '__main__':
     t0 = time.time()
     # test_parser()
     # rf_epidemiologists()
     # main_paris()
-    main()
+    # main()
+    # onset_distribution_epidemiologists()
+    # onset_distribution()
+    onset_distribution_paris()
     print('Time elapsed: %.2f sec' % (time.time() - t0))

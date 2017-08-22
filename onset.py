@@ -3,7 +3,9 @@
 # Nikita Seleznev, 2017
 
 import datetime
+import os
 
+import matplotlib.pyplot as plt
 import numpy as np
 
 
@@ -41,21 +43,36 @@ class Winter:
         # return date.month in [12, 1, 2]
 
 
-def draw_onset_distribution(onsets, sites, winter=Winter()):
-    import matplotlib.pyplot as pp
-
-    onset_dates = [0 for _ in range(winter.days_count)]
+def draw_onset_distribution_by_week(onsets, sites, winter=Winter(),
+                                    title=None, save_to_file=None):
+    onset_dates = [0 for _ in range(winter.days_count // 7 + 1)]
     for site in sites:
         for date in onsets[site]:
             try:
-                onset_dates[winter.get_day_index(date)] += 1
+                onset_dates[winter.get_day_index(date) // 7] += 1
             except ValueError:
                 print(date)
                 pass
-    pp.xlabel('день от начала зимы')
-    pp.ylabel('количество эпидемий')
-    pp.plot(onset_dates, "x")
-    pp.show()
+
+    fig = plt.figure()
+    if title:
+        plt.title(title)
+    ax = fig.add_subplot(111)
+
+    plt.xlabel('Week of winter')
+    plt.ylabel('Number of epidemics')
+    plt.plot(onset_dates)  # , "x")
+
+    ax.text(0.65, 0.9, 'Overall epidemics: ' + str(sum(onset_dates)),
+            transform=ax.transAxes,
+            style='italic',
+            bbox={'facecolor': 'red', 'alpha': 0.5, 'pad': 10})
+
+    if save_to_file:
+        os.makedirs(os.path.dirname('./' + save_to_file), exist_ok=True)
+        plt.savefig(save_to_file, bbox_inches='tight')
+    else:
+        plt.show()
 
 
 def get_average_ah_vs_onsets(ah_dev, onsets, sites, thresholds,
