@@ -29,6 +29,8 @@ MORTALITY_EXCESS_FILE = 'data/WeeklyExcessNew.txt'
 
 # Pass Entire US, Alaska, and Hawaii
 CONTIGUOUS_STATES = [1] + list(range(3, 12)) + list(range(13, 52))
+# TOP_24_BY_AH_DIP = [1, 3, 4, 8, 9, 10, 11, 14, 15, 18, 19, 21, 25, 26, 31, 33, 34, 36, 37, 39, 43, 44, 47, 49]
+# CONTIGUOUS_STATES = list(set(CONTIGUOUS_STATES) - set(TOP_24_BY_AH_DIP))  # exclude top 24 AH' lowest
 # CONTIGUOUS_STATES = [3, 6, 29, 32, 45]  # south-west
 # CONTIGUOUS_STATES = [7, 8, 9, 20, 21, 22, 30, 31, 33, 39, 40, 46, 49]  # north-east
 # CONTIGUOUS_STATES = [1, 4, 10, 11, 18, 19, 34, 41, 43, 47]  # bottom, Gulf region
@@ -154,7 +156,8 @@ def main():
 
     plot_average_ah_dev(average_ah_dev, THRESHOLD_COLORS,
                         DATE_SHIFT_RANGE,
-                        save_to_file='results/usa/figure.png')
+                        title='AH\' v. Onset Day: Contiguous States',
+                        save_to_file='results/usa/usa_winter12-2_all.pdf')
 
 
 def test_parser():
@@ -214,11 +217,13 @@ def winter_range_investigation():
             ah_dev, onsets, CONTIGUOUS_STATES, THRESHOLDS,
             DATE_SHIFT_RANGE, state_resolver)
 
-        filename = 'results/winter_range_usa/figure_winter%d-%d.png' % (
+        title = f'{winter.START.strftime("%B")} — {winter.END.strftime("%B")}'
+        filename = 'results/winter_range_usa/usa_winter%d-%d.pdf' % (
             winter.START.month, winter.END.month
         )
         plot_average_ah_dev(average_ah_dev, THRESHOLD_COLORS,
-                            DATE_SHIFT_RANGE, save_to_file=filename)
+                            DATE_SHIFT_RANGE, title=title,
+                            save_to_file=filename)
 
 
 def distinct_states():
@@ -261,12 +266,14 @@ def distinct_states():
             deep, state_resolver[state]['acronym'], state)
         )
 
+    top24_dip = [state for state, deep in sorted(deeps.items(), key=lambda x: x[1])][:24]
+    print(sorted(top24_dip), len(top24_dip))
 
 if __name__ == '__main__':
     t0 = time.time()
     # test_parser()
-    onset_distribution()
-    # winter_range_investigation()
+    # onset_distribution()
+    winter_range_investigation()
     # distinct_states()
     # main()
     print('Time elapsed: %.2f sec' % (time.time() - t0))

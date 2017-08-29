@@ -123,8 +123,16 @@ def plot_average_ah_dev(average_ah_dev, colors, date_shift_range,
     fig.add_subplot(111)
     if title:
         plt.title(title)
-    plt.xlabel('Day relative to onset')
-    plt.ylabel('Specific humidity anomaly (kg/kg)')
+    plt.xlabel('Day Relative to Onset')
+    plt.ylabel('Specific Humidity Anomaly (kg/kg)')
+
+    # Enable scaling and 10^k formatting
+    xfmt = plt.ScalarFormatter(useMathText=True)
+    xfmt.set_powerlimits((0, 0))
+    plt.gca().yaxis.set_major_formatter(xfmt)
+
+    # Dashed line for AH' = 0
+    plt.plot((date_shift_range[0], date_shift_range[-1]), (0, 0), 'k--')
 
     for threshold, average in average_ah_dev.items():
         plt.plot(date_shift_range, average,

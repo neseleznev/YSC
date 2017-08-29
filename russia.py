@@ -264,7 +264,7 @@ def main_paris():
     """
     # THRESHOLDS = [-1000, 5, 10, 50, 100, 500, 750, ]
     # THRESHOLDS = [0, 5, 9, 25, 35, 40, 45, 50, ]
-    THRESHOLDS = [9, 10, 20, 30, 40, 50, ]
+    THRESHOLDS = [9, 10, 20, 30]  # , 40, 50, ]
     # THRESHOLDS = [9, 10, 20, 30, 40, 50]
     # THRESHOLDS = [0, 25, 50, 75, 100, ]
     # THRESHOLDS = [10, 20, 30, 40, 50, 60, 70, 80]
@@ -274,8 +274,8 @@ def main_paris():
     #     last_day = 31
     # elif params[1] in [9, 11, 4]:
     #     last_day = 30
-    winter.START = datetime.date(winter.START.year, 10, 1)
-    winter.END = datetime.date(winter.END.year, 4, 30)
+    winter.START = datetime.date(winter.START.year, 11, 1)
+    winter.END = datetime.date(winter.END.year, 3, 31)
 
     ah = get_ah(PARIS)
     ah_mean = get_ah_mean(ah)
@@ -294,12 +294,14 @@ def main_paris():
         ah_dev, onsets, PARIS, THRESHOLDS,
         DATE_SHIFT_RANGE, state_resolver)
 
-    filename = 'results/paris2/figure_winter%d-%d_threshold%s.png' % (
+    title = f'Île-de-France, winter period: {winter.START.strftime("%B")} — {winter.END.strftime("%B")}'
+    filename = 'results/paris/paris_winter%d-%d_threshold%s.pdf' % (
         winter.START.month, winter.END.month,
         max(average_ah_dev.keys())
     )
     plot_average_ah_dev(average_ah_dev, THRESHOLD_COLORS,
-                        DATE_SHIFT_RANGE, save_to_file=filename)
+                        DATE_SHIFT_RANGE, title=title,
+                        save_to_file=filename)
 
 
 def rf_epidemiologists():
@@ -318,9 +320,9 @@ def rf_epidemiologists():
         ah_dev, onsets, CITIES, THRESHOLDS,
         DATE_SHIFT_RANGE, city_resolver)
 
-    title = ','.join(CITIES) if len(CITIES) > 1 \
+    title = 'All cities' if len(CITIES) > 1 \
         else city_resolver[CITIES[0]]['name']
-    filename = 'results/russia/epidemiologists/%s.png' % title
+    filename = 'results/russia/epidemiologists/%s.pdf' % title
     plot_average_ah_dev(average_ah_dev, THRESHOLD_COLORS, DATE_SHIFT_RANGE,
                         title=title, save_to_file=filename)
 
@@ -329,7 +331,7 @@ def main():
     """
     Parameters
     """
-    THRESHOLDS = [0, 5, 10, 15, 20]
+    THRESHOLDS = [5, 10, 15]
     # CITIES = ['spb']
     winter = Winter()
     # if params[1] in [10, 12, 1, 3, 5]:
@@ -359,9 +361,9 @@ def main():
         ah_dev, onsets, CITIES, THRESHOLDS,
         DATE_SHIFT_RANGE, city_resolver)
 
-    title = ','.join(CITIES) if len(CITIES) > 1 \
+    title = 'All cities' if len(CITIES) > 1 \
         else city_resolver[CITIES[0]]['name']
-    filename = 'results/russia/morbidity/%s_winter%d-%d_threshold%s-%s.png' % (
+    filename = 'results/russia/morbidity/%s_winter%d-%d_threshold%s-%s.pdf' % (
         title, winter.START.month, winter.END.month,
         min(average_ah_dev.keys()), max(average_ah_dev.keys())
     )
@@ -456,9 +458,9 @@ if __name__ == '__main__':
     t0 = time.time()
     # test_parser()
     # rf_epidemiologists()
-    # main_paris()
+    main_paris()
     # main()
     # onset_distribution_epidemiologists()
     # onset_distribution()
-    onset_distribution_paris()
+    # onset_distribution_paris()
     print('Time elapsed: %.2f sec' % (time.time() - t0))
