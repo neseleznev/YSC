@@ -18,9 +18,13 @@
 """
 import csv
 import datetime
+import json
 import time
 
+from scipy import stats
+
 from ah import get_ah_mean_for_site, get_ah_mean, get_ah_deviation, draw_ah_mean, plot_average_ah_dev
+from hypothesis import generate_control_sample, generate_experimental_sample
 from onset import Winter, draw_onset_distribution_by_week, get_average_ah_vs_onsets
 
 AH_CSV_FILE = 'data/stateAHmsk_oldFL.csv'
@@ -142,13 +146,21 @@ def get_onsets(excess_data, thresholds, winter=Winter()):
 
 
 def main():
+    winter = Winter()
+    # if params[1] in [10, 12, 1, 3, 5]:
+    #     last_day = 31
+    # elif params[1] in [9, 11, 4]:
+    #     last_day = 30
+    winter.START = datetime.date(winter.START.year, 10, 1)
+    winter.END = datetime.date(winter.END.year, 4, 30)
+
     state_resolver = get_state_resolver(STATE_CODES_FILE)
     ah = get_ah(AH_CSV_FILE)
     ah_mean = get_ah_mean(ah)
     ah_dev = get_ah_deviation(ah, ah_mean)
 
     excess_data = get_mortality_excess(MORTALITY_EXCESS_FILE)
-    onsets = get_onsets(excess_data, THRESHOLDS)
+    onsets = get_onsets(excess_data, THRESHOLDS, winter)
 
     average_ah_dev = get_average_ah_vs_onsets(
         ah_dev, onsets, CONTIGUOUS_STATES, THRESHOLDS,
@@ -157,7 +169,7 @@ def main():
     plot_average_ah_dev(average_ah_dev, THRESHOLD_COLORS,
                         DATE_SHIFT_RANGE,
                         title='AH\' v. Onset Day: Contiguous States',
-                        save_to_file='results/usa/usa_winter12-2_all.pdf')
+                        save_to_file='results/usa/usa_winter10-4_all.pdf')
 
 
 def test_parser():
@@ -237,7 +249,7 @@ def distinct_states():
 
     deeps = dict()  # state_code: ah
     deep_level = -0.0003
-    anomaly_peaks = [-19, -18, -17, -11, -10, -9]
+    anomaly_peaks = range(-28, 0, 1)  # [-19, -18, -17, -11, -10, -9]
 
     for state in [1] + list(range(3, 12)) + list(range(13, 52)):
         CONTIGUOUS_STATES = [state]
@@ -248,7 +260,7 @@ def distinct_states():
 
         for threshold, average in average_ah_dev.items():
             idxs = [day_x - DATE_SHIFT_RANGE[0]
-                   for day_x in anomaly_peaks]
+                    for day_x in anomaly_peaks]
             deep = min(average[idx] for idx in idxs)
             if deep < deep_level:
                 if state in deeps:
@@ -266,14 +278,177 @@ def distinct_states():
             deep, state_resolver[state]['acronym'], state)
         )
 
-    top24_dip = [state for state, deep in sorted(deeps.items(), key=lambda x: x[1])][:24]
-    print(sorted(top24_dip), len(top24_dip))
+    top_dip = [state for state, deep in sorted(deeps.items(), key=lambda x: x[1])]
+    print(f'Top dip {len(top_dip)}: {top_dip}')
+    return top_dip
+
+
+def stats_all_country():
+    # THRESHOLDS = [0.005]
+    winter = Winter()
+    # if params[1] in [10, 12, 1, 3, 5]:
+    #     last_day = 31
+    # elif params[1] in [9, 11, 4]:
+    #     last_day = 30
+    winter.START = datetime.date(winter.START.year, 10, 1)
+    winter.END = datetime.date(winter.END.year, 3, 31)
+
+    state_resolver = get_state_resolver(STATE_CODES_FILE)
+    ah = get_ah(AH_CSV_FILE)
+    ah_mean = get_ah_mean(ah)
+    ah_dev = get_ah_deviation(ah, ah_mean)
+
+    excess_data = get_mortality_excess(MORTALITY_EXCESS_FILE)
+    onsets = get_onsets(excess_data, THRESHOLDS, winter)
+    years = range(1972, 2002)
+
+    # Generate for all the country
+    for threshold in THRESHOLDS:
+        generate_control_sample(onsets, threshold, ah_dev, Winter(), CONTIGUOUS_STATES, state_resolver, years,
+                                filename=f'results/stats/usa/ah_sample.{threshold}.json')
+        generate_experimental_sample(onsets, threshold, ah_dev, Winter(), CONTIGUOUS_STATES, state_resolver,
+                                     filename=f'results/stats/usa/epidemic_sample.{threshold}.json')
+
+    for threshold in THRESHOLDS:
+        print(f'threshold {threshold}:')
+        with open(f'results/stats/usa/ah_sample.{threshold}.json', 'r') as f:
+            ah_sample = json.load(f)
+        with open(f'results/stats/usa/epidemic_sample.{threshold}.json', 'r') as f:
+            epidemic_sample = json.load(f)
+
+        t, prob = stats.ttest_ind(ah_sample, epidemic_sample)
+        print(t, prob)
+        t, prob = stats.ttest_ind(ah_sample, epidemic_sample, equal_var=False)
+        print(t, prob)
+
+
+def stats_distinct_states():
+    winter = Winter()
+    # if params[1] in [10, 12, 1, 3, 5]:
+    #     last_day = 31
+    # elif params[1] in [9, 11, 4]:
+    #     last_day = 30
+    winter.START = datetime.date(winter.START.year, 10, 1)
+    winter.END = datetime.date(winter.END.year, 3, 31)
+
+    state_resolver = get_state_resolver(STATE_CODES_FILE)
+    ah = get_ah(AH_CSV_FILE)
+    ah_mean = get_ah_mean(ah)
+    ah_dev = get_ah_deviation(ah, ah_mean)
+
+    excess_data = get_mortality_excess(MORTALITY_EXCESS_FILE)
+    onsets = get_onsets(excess_data, THRESHOLDS, winter)
+    years = range(1972, 2002)
+
+    # For distinct states
+    threshold = THRESHOLDS[-1]  # The strongest 0.02
+
+    for site in CONTIGUOUS_STATES[1:]:
+        generate_control_sample(onsets, threshold, ah_dev, Winter(), [site], state_resolver, years,
+                                filename=f'results/stats/usa/distinct/control.{site}.{threshold}.json')
+        generate_experimental_sample(onsets, threshold, ah_dev, Winter(), [site], state_resolver,
+                                     filename=f'results/stats/usa/distinct/experimental.{site}.{threshold}.json')
+
+    different = []
+    equal = []
+
+    for site in CONTIGUOUS_STATES:
+        try:
+            with open(f'results/stats/usa/distinct/control.{site}.{threshold}.json', 'r') as f:
+                ah_sample = json.load(f)
+            # ggg(onsets, threshold, ah_dev, Winter(), [site], state_resolver,
+            #     filename=f'results/stats/usa/distinct/experimental.{site}.{threshold}.json')
+            with open(f'results/stats/usa/distinct/experimental.{site}.{threshold}.json', 'r') as f:
+                epidemic_sample = json.load(f)
+        except:
+            continue
+
+        # print(state_resolver[site]['name'])
+        # print(f"AH' sample size = {len(ah_sample)}")
+        # print(f"Epidemic sample size = {len(epidemic_sample)}")
+        # t, prob = stats.ttest_ind(ah_sample, epidemic_sample)
+        # print(f"Equal variance (Student's t-test): P-value = {prob}")
+        t, prob = stats.ttest_ind(ah_sample, epidemic_sample, equal_var=False)
+        # print(f"Not equal variance (Welch’s t-test): P-value = {prob}")
+        # print()
+        prob_str = "\\textbf{"+str(prob)[:7]+"}" if prob < 0.05 else str(prob)[:7]
+        print(f"{state_resolver[site]['name']} & {len(epidemic_sample)} & " + prob_str + " \\\\\n\\hline")
+
+        if prob < 0.05:
+            different.append((state_resolver[site]['name'], prob,))
+        else:
+            equal.append((state_resolver[site]['name'], prob,))
+
+    print(f"\n\n\nOverall {len(different) + len(equal)} states:")
+    print(f'\t{len(different)} different avg: {[x[0] for x in different]}')
+    print(f'\t{len(equal)} equal avg: {[x[0] for x in equal]}')
+    print()
+    diff_prob, eq_prob = [x[1] for x in different], [x[1] for x in equal]
+    if diff_prob:
+        print(f'Different P-value variance: [{min(diff_prob)} ... {max(diff_prob)}]')
+    if eq_prob:
+        print(f'Equal P-value variance: [{min(eq_prob)} ... {max(eq_prob)}]')
+
+
+def stats_joint():
+    # Assert stats_distinct_states been already performed for every state
+    winter = Winter()
+    # if params[1] in [10, 12, 1, 3, 5]:
+    #     last_day = 31
+    # elif params[1] in [9, 11, 4]:
+    #     last_day = 30
+    winter.START = datetime.date(winter.START.year, 10, 1)
+    winter.END = datetime.date(winter.END.year, 3, 31)
+
+    state_resolver = get_state_resolver(STATE_CODES_FILE)
+    ah = get_ah(AH_CSV_FILE)
+    ah_mean = get_ah_mean(ah)
+    ah_dev = get_ah_deviation(ah, ah_mean)
+
+    excess_data = get_mortality_excess(MORTALITY_EXCESS_FILE)
+    onsets = get_onsets(excess_data, THRESHOLDS, winter)
+
+    # For joint states test
+    threshold = THRESHOLDS[-1]  # The strongest
+    ah_sample = []
+
+    top_dip = distinct_states()
+
+    for i in range(len(top_dip)):
+        CONTIGUOUS_STATES = [1] + list(range(3, 12)) + list(range(13, 52))
+        CONTIGUOUS_STATES = list(set(CONTIGUOUS_STATES) - set(top_dip[:i]))  # exclude top 24 AH' lowest
+
+        for site in CONTIGUOUS_STATES:
+            try:
+                with open(f'results/stats/usa/distinct/control.{site}.{threshold}.json', 'r') as f:
+                    ah_sample += json.load(f)
+            except:
+                continue
+
+        generate_experimental_sample(onsets, threshold, ah_dev, Winter(), CONTIGUOUS_STATES, state_resolver,
+                                     filename=f'results/stats/usa/joint/sites_cnt{len(CONTIGUOUS_STATES)}.{threshold}.json')
+
+        with open(f'results/stats/usa/joint/sites_cnt{len(CONTIGUOUS_STATES)}.{threshold}.json', 'r') as f:
+            epidemic_sample = json.load(f)
+
+        print(f'Some {len(CONTIGUOUS_STATES)} states')
+        print(f"AH' sample size = {len(ah_sample)}")
+        print(f"Epidemic sample size = {len(epidemic_sample)}")
+        # t, prob = stats.ttest_ind(ah_sample, epidemic_sample)
+        # print(f"Equal variance (Student's t-test): P-value = {prob}")
+        t, prob = stats.ttest_ind(ah_sample, epidemic_sample, equal_var=False)
+        print(f"Not equal variance (Welch’s t-test): P-value = {prob}")
+        print()
+
 
 if __name__ == '__main__':
     t0 = time.time()
     # test_parser()
     # onset_distribution()
-    winter_range_investigation()
+    # winter_range_investigation()
     # distinct_states()
     # main()
+    stats_all_country()
+    # stats_distinct_states()
+    # stats_joint()
     print('Time elapsed: %.2f sec' % (time.time() - t0))
