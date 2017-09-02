@@ -126,6 +126,9 @@ def plot_average_ah_dev(average_ah_dev, colors, date_shift_range,
     plt.xlabel('Day Relative to Onset')
     plt.ylabel('Specific Humidity Anomaly (kg/kg)')
 
+    # Equal axis range
+    plt.ylim([-7e-4, 5e-4])
+
     # Enable scaling and 10^k formatting
     xfmt = plt.ScalarFormatter(useMathText=True)
     xfmt.set_powerlimits((0, 0))

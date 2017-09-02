@@ -3,12 +3,16 @@
 # Nikita Seleznev, 2017
 
 import copy
-from collections import OrderedDict
 import csv
 import datetime
+import json
 import time
+from collections import OrderedDict
+
+from scipy import stats
 
 from ah import get_ah_mean, get_ah_deviation, plot_average_ah_dev, draw_ah_mean
+from hypothesis import generate_control_sample, generate_experimental_sample
 from onset import get_average_ah_vs_onsets, Winter, draw_onset_distribution_by_week
 
 AH_FILE_PATTERN = 'data/flu_dbase/%s.txt'
@@ -454,13 +458,154 @@ def onset_distribution_paris():
         save_to_file=filename)
 
 
+def hypothesis_test():
+    """
+    Parameters
+    """
+    THRESHOLDS = [5, 10, 15]
+    # CITIES = ['spb']
+    winter = Winter()
+    # if params[1] in [10, 12, 1, 3, 5]:
+    #     last_day = 31
+    # elif params[1] in [9, 11, 4]:
+    #     last_day = 30
+    winter.START = datetime.date(winter.START.year, 11, 1)
+    winter.END = datetime.date(winter.END.year, 3, 31)
+
+    city_resolver = get_city_resolver()
+    population = get_population(CITIES)
+
+    ah = get_ah(CITIES)
+    ah_mean = get_ah_mean(ah)
+    ah_dev = get_ah_deviation(ah, ah_mean)
+
+    morbidity = get_daily_morbidity(CITIES)
+    morbidity_mean = get_morbidity_mean(morbidity)
+    morbidity_excess = get_morbidity_excess(
+        morbidity, morbidity_mean)
+    excess_data = get_relative_weekly_morbidity_excess(
+        morbidity_excess, population)
+
+    onsets = get_onsets_by_morbidity(excess_data, THRESHOLDS)
+    years = range(1986, 2015)
+
+    from hypothesis import generate_control_sample, generate_experimental_sample
+    for threshold in THRESHOLDS:
+        generate_control_sample(onsets, threshold, ah_dev, Winter(), CITIES, city_resolver, years,
+                                filename=f'results/stats/russia/ah_sample.{threshold}.json')
+        generate_experimental_sample(onsets, threshold, ah_dev, Winter(), CITIES, city_resolver,
+                                     filename=f'results/stats/russia/epidemic_sample.{threshold}.json')
+
+    for threshold in THRESHOLDS:
+        print(f'threshold {threshold}')
+        with open(f'results/stats/russia/ah_sample.{threshold}.json', 'r') as f:
+            ah_sample = json.load(f)
+        with open(f'results/stats/russia/epidemic_sample.{threshold}.json', 'r') as f:
+            epidemic_sample = json.load(f)
+
+        print(f"AH' sample size = {len(ah_sample)}")
+        print(f"Epidemic sample size = {len(epidemic_sample)}")
+        t, prob = stats.ttest_ind(ah_sample, epidemic_sample)
+        print(f"Equal variance (Student's t-test): P-value = {prob}")
+        t, prob = stats.ttest_ind(ah_sample, epidemic_sample, equal_var=False)
+        print(f"Not equal variance (Welch’s t-test): P-value = {prob}")
+        print()
+
+
+def hypothesis_test_paris():
+    THRESHOLDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30]
+    winter = Winter()
+    # if params[1] in [10, 12, 1, 3, 5]:
+    #     last_day = 31
+    # elif params[1] in [9, 11, 4]:
+    #     last_day = 30
+    winter.START = datetime.date(winter.START.year, 10, 1)
+    winter.END = datetime.date(winter.END.year, 3, 31)
+
+    city_resolver = get_city_resolver()
+    population = get_population(PARIS)
+
+    ah = get_ah(PARIS)
+    ah_mean = get_ah_mean(ah)
+    ah_dev = get_ah_deviation(ah, ah_mean)
+
+    morbidity = get_daily_morbidity(PARIS)
+    morbidity_mean = get_morbidity_mean(morbidity)
+    morbidity_excess = get_morbidity_excess(
+        morbidity, morbidity_mean)
+    excess_data = get_relative_weekly_morbidity_excess(
+        morbidity_excess, population)
+
+    onsets = get_onsets_by_morbidity(excess_data, THRESHOLDS)
+    years = range(1986, 2015)
+
+    for threshold in THRESHOLDS:
+        generate_control_sample(onsets, threshold, ah_dev, winter, PARIS, city_resolver, years,
+                                filename=f'results/stats/paris/ah_sample.{threshold}.json')
+        generate_experimental_sample(onsets, threshold, ah_dev, winter, PARIS, city_resolver,
+                                     filename=f'results/stats/paris/epidemic_sample.{threshold}.json')
+
+    for threshold in THRESHOLDS:
+        print(f'threshold {threshold}')
+        with open(f'results/stats/paris/ah_sample.{threshold}.json', 'r') as f:
+            ah_sample = json.load(f)
+        with open(f'results/stats/paris/epidemic_sample.{threshold}.json', 'r') as f:
+            epidemic_sample = json.load(f)
+
+        print(f"AH' sample size = {len(ah_sample)}")
+        print(f"Epidemic sample size = {len(epidemic_sample)}")
+        t, prob = stats.ttest_ind(ah_sample, epidemic_sample)
+        print(f"Equal variance (Student's t-test): P-value = {prob}")
+        t, prob = stats.ttest_ind(ah_sample, epidemic_sample, equal_var=False)
+        print(f"Not equal variance (Welch’s t-test): P-value = {prob}")
+        print()
+
+
+def hypothesis_test_epidemiologists():
+    THRESHOLDS = [0]
+    threshold = 0
+
+    city_resolver = get_city_resolver()
+    ah = get_ah(CITIES)
+    ah_mean = get_ah_mean(ah)
+    ah_dev = get_ah_deviation(ah, ah_mean)
+
+    onsets = get_onsets_by_epidemiologists(
+        CITIES, AH_FILE_PATTERN, THRESHOLDS)
+    years = range(1986, 2015)
+
+    from hypothesis import generate_control_sample, generate_experimental_sample
+
+    generate_control_sample(onsets, threshold, ah_dev, Winter(), CITIES, city_resolver, years,
+                            filename=f'results/stats/russia_epid/ah_sample.{threshold}.json')
+    generate_experimental_sample(onsets, threshold, ah_dev, Winter(), CITIES, city_resolver,
+                                 filename=f'results/stats/russia_epid/epidemic_sample.{threshold}.json')
+
+    print(f'threshold {threshold}')
+    with open(f'results/stats/russia_epid/ah_sample.{threshold}.json', 'r') as f:
+        ah_sample = json.load(f)
+    with open(f'results/stats/russia_epid/epidemic_sample.{threshold}.json', 'r') as f:
+        epidemic_sample = json.load(f)
+
+    print(f"AH' sample size = {len(ah_sample)}")
+    print(f"Epidemic sample size = {len(epidemic_sample)}")
+    t, prob = stats.ttest_ind(ah_sample, epidemic_sample)
+    print(f"Equal variance (Student's t-test): P-value = {prob}")
+    t, prob = stats.ttest_ind(ah_sample, epidemic_sample, equal_var=False)
+    print(f"Not equal variance (Welch’s t-test): P-value = {prob}")
+    print()
+
+
 if __name__ == '__main__':
     t0 = time.time()
     # test_parser()
     # rf_epidemiologists()
-    main_paris()
+    # main_paris()
     # main()
     # onset_distribution_epidemiologists()
     # onset_distribution()
     # onset_distribution_paris()
+    hypothesis_test()
+    # hypothesis_test_paris()
+    # hypothesis_test_epidemiologists()
     print('Time elapsed: %.2f sec' % (time.time() - t0))
