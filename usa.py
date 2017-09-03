@@ -35,11 +35,11 @@ MORTALITY_EXCESS_FILE = 'data/WeeklyExcessNew.txt'
 CONTIGUOUS_STATES = [1] + list(range(3, 12)) + list(range(13, 52))
 # TOP_24_BY_AH_DIP = [1, 3, 4, 8, 9, 10, 11, 14, 15, 18, 19, 21, 25, 26, 31, 33, 34, 36, 37, 39, 43, 44, 47, 49]
 # CONTIGUOUS_STATES = list(set(CONTIGUOUS_STATES) - set(TOP_24_BY_AH_DIP))  # exclude top 24 AH' lowest
-# CONTIGUOUS_STATES = [3, 6, 29, 32, 45]  # south-west
-# CONTIGUOUS_STATES = [7, 8, 9, 20, 21, 22, 30, 31, 33, 39, 40, 46, 49]  # north-east
-# CONTIGUOUS_STATES = [1, 4, 10, 11, 18, 19, 34, 41, 43, 47]  # bottom, Gulf region
-# CONTIGUOUS_STATES = [5, 13, 14, 15, 16, 17, 23, 24, 25, 26, 27, 28,
-#                      35, 36, 37, 38, 42, 44, 48, 50, 51]  # the rest
+SW_STATES = [3, 6, 29, 32, 45]  # south-west
+NE_STATES = [7, 8, 9, 20, 21, 22, 30, 31, 33, 39, 40, 46, 49]  # north-east
+GULF_STATES = [1, 4, 10, 11, 18, 19, 34, 41, 43, 47]  # bottom, Gulf region
+REST_STATES = [5, 13, 14, 15, 16, 17, 23, 24, 25, 26, 27, 28,
+               35, 36, 37, 38, 42, 44, 48, 50, 51]  # the rest
 DATE_SHIFT_RANGE = range(-6 * 7, 4 * 7 + 1)
 THRESHOLDS = [0.005, 0.01, 0.015, 0.02]
 THRESHOLD_COLORS = {0.005: 'b', 0.01: 'g', 0.015: 'r', 0.02: 'c'}
@@ -162,14 +162,26 @@ def main():
     excess_data = get_mortality_excess(MORTALITY_EXCESS_FILE)
     onsets = get_onsets(excess_data, THRESHOLDS, winter)
 
-    average_ah_dev = get_average_ah_vs_onsets(
-        ah_dev, onsets, CONTIGUOUS_STATES, THRESHOLDS,
-        DATE_SHIFT_RANGE, state_resolver)
+    regions = [
+        # ('all', 'Contiguous States', CONTIGUOUS_STATES),
+        ('sw', 'Southwest States', SW_STATES),
+        ('ne', 'Northeast States', NE_STATES),
+        ('gulf', 'Gulf States', GULF_STATES),
+        ('the_rest', 'The Remained States', REST_STATES)
+    ]
 
-    plot_average_ah_dev(average_ah_dev, THRESHOLD_COLORS,
-                        DATE_SHIFT_RANGE,
-                        title='AH\' v. Onset Day: Contiguous States',
-                        save_to_file='results/usa/usa_winter10-4_all.pdf')
+    for region in regions:
+        name_suffix, title_suffix, SITES = region
+
+        average_ah_dev = get_average_ah_vs_onsets(
+            ah_dev, onsets, SITES, THRESHOLDS,
+            DATE_SHIFT_RANGE, state_resolver)
+
+        plot_average_ah_dev(
+            average_ah_dev, THRESHOLD_COLORS, DATE_SHIFT_RANGE,
+            limits=(-7e-4, 5e-4),
+            title='AH\' v. Onset Day: ' + title_suffix,
+            save_to_file='results/usa/usa_winter10-4_%s.pdf' % name_suffix)
 
 
 def test_parser():
@@ -229,13 +241,14 @@ def winter_range_investigation():
             ah_dev, onsets, CONTIGUOUS_STATES, THRESHOLDS,
             DATE_SHIFT_RANGE, state_resolver)
 
-        title = f'{winter.START.strftime("%B")} — {winter.END.strftime("%B")}'
+        rng = f'{winter.START.strftime("%B")} — {winter.END.strftime("%B")}'
+        title = 'AH\' v. Onset Day: outbreaks in ' + rng
         filename = 'results/winter_range_usa/usa_winter%d-%d.pdf' % (
             winter.START.month, winter.END.month
         )
         plot_average_ah_dev(average_ah_dev, THRESHOLD_COLORS,
-                            DATE_SHIFT_RANGE, title=title,
-                            save_to_file=filename)
+                            DATE_SHIFT_RANGE, limits=(-3.3e-4, 2.2e-4),
+                            title=title, save_to_file=filename)
 
 
 def distinct_states():
@@ -408,11 +421,23 @@ def stats_joint():
     excess_data = get_mortality_excess(MORTALITY_EXCESS_FILE)
     onsets = get_onsets(excess_data, THRESHOLDS, winter)
 
+    top_dip = distinct_states()
+    CONTIGUOUS_STATES = [1] + list(range(3, 12)) + list(range(13, 52))
+    NOT_TOP_STATES = list(set(CONTIGUOUS_STATES) - set(top_dip[:24]))  # exclude top 24 AH' lowest
+
+    average_ah_dev = get_average_ah_vs_onsets(
+        ah_dev, onsets, NOT_TOP_STATES, THRESHOLDS,
+        DATE_SHIFT_RANGE, state_resolver)
+
+    plot_average_ah_dev(
+        average_ah_dev, THRESHOLD_COLORS, DATE_SHIFT_RANGE,
+        limits=(-7e-4, 5e-4),
+        title='AH\' v. Onset Day: The Remained States',
+        save_to_file='results/usa/usa_top.pdf')
+
     # For joint states test
     threshold = THRESHOLDS[-1]  # The strongest
     ah_sample = []
-
-    top_dip = distinct_states()
 
     for i in range(len(top_dip)):
         CONTIGUOUS_STATES = [1] + list(range(3, 12)) + list(range(13, 52))
@@ -448,7 +473,7 @@ if __name__ == '__main__':
     # winter_range_investigation()
     # distinct_states()
     # main()
-    stats_all_country()
+    # stats_all_country()
     # stats_distinct_states()
-    # stats_joint()
+    stats_joint()
     print('Time elapsed: %.2f sec' % (time.time() - t0))

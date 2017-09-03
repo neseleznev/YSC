@@ -116,7 +116,7 @@ def draw_ah_mean(ah_mean, sites, colors):
 
 
 def plot_average_ah_dev(average_ah_dev, colors, date_shift_range,
-                        title=None, save_to_file=None):
+                        limits=(-7e-4, 5e-4), title=None, save_to_file=None):
     fig = plt.figure(figsize=(10, 6))
     matplotlib.rcParams.update({'font.size': 14})
 
@@ -124,10 +124,10 @@ def plot_average_ah_dev(average_ah_dev, colors, date_shift_range,
     if title:
         plt.title(title)
     plt.xlabel('Day Relative to Onset')
-    plt.ylabel('Specific Humidity Anomaly (kg/kg)')
+    plt.ylabel('Absolute Humidity Anomaly (kg/kg)')
 
     # Equal axis range
-    plt.ylim([-7e-4, 5e-4])
+    plt.ylim(limits)
 
     # Enable scaling and 10^k formatting
     xfmt = plt.ScalarFormatter(useMathText=True)
@@ -141,7 +141,8 @@ def plot_average_ah_dev(average_ah_dev, colors, date_shift_range,
         plt.plot(date_shift_range, average,
                  colors.get(threshold, '') + '-', label=str(threshold))
 
-    plt.legend(loc='best', fancybox=True, shadow=True)
+    if len(average_ah_dev.keys()) > 1:  # One threshold => omit a legend
+        plt.legend(loc='best', fancybox=True, shadow=True)
 
     if save_to_file:
         os.makedirs(os.path.dirname('./' + save_to_file), exist_ok=True)

@@ -298,14 +298,15 @@ def main_paris():
         ah_dev, onsets, PARIS, THRESHOLDS,
         DATE_SHIFT_RANGE, state_resolver)
 
-    title = f'Île-de-France, winter period: {winter.START.strftime("%B")} — {winter.END.strftime("%B")}'
+    title = f'Île-de-France: outbreaks in ' \
+            f'{winter.START.strftime("%B")} — {winter.END.strftime("%B")}'
     filename = 'results/paris/paris_winter%d-%d_threshold%s.pdf' % (
         winter.START.month, winter.END.month,
         max(average_ah_dev.keys())
     )
-    plot_average_ah_dev(average_ah_dev, THRESHOLD_COLORS,
-                        DATE_SHIFT_RANGE, title=title,
-                        save_to_file=filename)
+    plot_average_ah_dev(
+        average_ah_dev, THRESHOLD_COLORS, DATE_SHIFT_RANGE,
+        limits=(-11e-4, 15e-4), title=title, save_to_file=filename)
 
 
 def rf_epidemiologists():
@@ -320,15 +321,23 @@ def rf_epidemiologists():
     onsets = get_onsets_by_epidemiologists(
         CITIES, AH_FILE_PATTERN, THRESHOLDS)
 
-    average_ah_dev = get_average_ah_vs_onsets(
-        ah_dev, onsets, CITIES, THRESHOLDS,
-        DATE_SHIFT_RANGE, city_resolver)
+    cases = [
+        (['msk'], 'Moscow', 'Moscow'),
+        (['spb'], 'SaintPetersburg', 'Saint Petersburg'),
+        (['nsk'], 'Novosibirsk', 'Novosibirsk'),
+        (['spb', 'msk', 'nsk'], 'spb,msk,nsk', 'All cities'),
+    ]
 
-    title = 'All cities' if len(CITIES) > 1 \
-        else city_resolver[CITIES[0]]['name']
-    filename = 'results/russia/epidemiologists/%s.pdf' % title
-    plot_average_ah_dev(average_ah_dev, THRESHOLD_COLORS, DATE_SHIFT_RANGE,
-                        title=title, save_to_file=filename)
+    for case in cases:
+        CUR_CITIES, name_suffix, title = case
+
+        average_ah_dev = get_average_ah_vs_onsets(
+            ah_dev, onsets, CUR_CITIES, THRESHOLDS,
+            DATE_SHIFT_RANGE, city_resolver)
+
+        filename = 'results/russia/epidemiologists/rf_%s.pdf' % name_suffix
+        plot_average_ah_dev(average_ah_dev, THRESHOLD_COLORS, DATE_SHIFT_RANGE,
+                            title=title, save_to_file=filename)
 
 
 def main():
@@ -361,18 +370,27 @@ def main():
 
     onsets = get_onsets_by_morbidity(excess_data, THRESHOLDS, winter=winter)
 
-    average_ah_dev = get_average_ah_vs_onsets(
-        ah_dev, onsets, CITIES, THRESHOLDS,
-        DATE_SHIFT_RANGE, city_resolver)
+    cases = [
+        (['msk'], 'Moscow', 'Moscow'),
+        (['spb'], 'SaintPetersburg', 'Saint Petersburg'),
+        (['nsk'], 'Novosibirsk', 'Novosibirsk'),
+        (['spb', 'msk', 'nsk'], 'spb,msk,nsk', 'All cities'),
+    ]
 
-    title = 'All cities' if len(CITIES) > 1 \
-        else city_resolver[CITIES[0]]['name']
-    filename = 'results/russia/morbidity/%s_winter%d-%d_threshold%s-%s.pdf' % (
-        title, winter.START.month, winter.END.month,
-        min(average_ah_dev.keys()), max(average_ah_dev.keys())
-    )
-    plot_average_ah_dev(average_ah_dev, THRESHOLD_COLORS,
-                        DATE_SHIFT_RANGE, title=title, save_to_file=filename)
+    for case in cases:
+        CUR_CITIES, name_suffix, title = case
+
+        average_ah_dev = get_average_ah_vs_onsets(
+            ah_dev, onsets, CUR_CITIES, THRESHOLDS,
+            DATE_SHIFT_RANGE, city_resolver)
+
+        filename = 'results/russia/morbidity/' \
+                   'rf_m_%s_winter%d-%d_threshold%s-%s.pdf' % (
+                    name_suffix, winter.START.month, winter.END.month,
+                    min(average_ah_dev.keys()), max(average_ah_dev.keys()))
+        plot_average_ah_dev(
+            average_ah_dev, THRESHOLD_COLORS, DATE_SHIFT_RANGE,
+            title=title, save_to_file=filename)
 
 
 def onset_distribution_epidemiologists():
