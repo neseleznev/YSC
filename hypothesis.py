@@ -21,7 +21,7 @@ def generate_control_sample(onsets, threshold, ah_dev, winter, sites, site_resol
 
         # Print progress and add chunk to result
         if iteration % 1000 == 0:
-            print(f'{int(100 * iter / CONTROL_SAMPLE_SIZE)} %')
+            print(f'{int(100 * iteration / CONTROL_SAMPLE_SIZE)} %')
             if Path(filename).is_file():
                 with open(filename, 'r') as f:
                     saved = json.load(f)

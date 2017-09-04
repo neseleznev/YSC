@@ -344,7 +344,7 @@ def main():
     """
     Parameters
     """
-    THRESHOLDS = [5, 10, 15]
+    THRESHOLDS = [30, 35, 40, 45]  # [25, 30, 35, 40, 45, 50]
     # CITIES = ['spb']
     winter = Winter()
     # if params[1] in [10, 12, 1, 3, 5]:
@@ -480,7 +480,8 @@ def hypothesis_test():
     """
     Parameters
     """
-    THRESHOLDS = [5, 10, 15]
+    # THRESHOLDS = [5, 10, 15]
+    THRESHOLDS = [5, 10, 15, 20, 25, 28, 30, 35, 40, 43, 44, 45, 50]
     # CITIES = ['spb']
     winter = Winter()
     # if params[1] in [10, 12, 1, 3, 5]:
@@ -504,15 +505,16 @@ def hypothesis_test():
     excess_data = get_relative_weekly_morbidity_excess(
         morbidity_excess, population)
 
-    onsets = get_onsets_by_morbidity(excess_data, THRESHOLDS)
+    onsets = get_onsets_by_morbidity(excess_data, THRESHOLDS, winter)
     years = range(1986, 2015)
 
-    from hypothesis import generate_control_sample, generate_experimental_sample
     for threshold in THRESHOLDS:
-        generate_control_sample(onsets, threshold, ah_dev, Winter(), CITIES, city_resolver, years,
-                                filename=f'results/stats/russia/ah_sample.{threshold}.json')
-        generate_experimental_sample(onsets, threshold, ah_dev, Winter(), CITIES, city_resolver,
-                                     filename=f'results/stats/russia/epidemic_sample.{threshold}.json')
+        generate_control_sample(
+            onsets, threshold, ah_dev, winter, CITIES, city_resolver, years,
+            filename=f'results/stats/russia/ah_sample.{threshold}.json')
+        generate_experimental_sample(
+            onsets, threshold, ah_dev, winter, CITIES, city_resolver,
+            filename=f'results/stats/russia/epidemic_sample.{threshold}.json')
 
     for threshold in THRESHOLDS:
         print(f'threshold {threshold}')
@@ -523,8 +525,8 @@ def hypothesis_test():
 
         print(f"AH' sample size = {len(ah_sample)}")
         print(f"Epidemic sample size = {len(epidemic_sample)}")
-        t, prob = stats.ttest_ind(ah_sample, epidemic_sample)
-        print(f"Equal variance (Student's t-test): P-value = {prob}")
+        # t, prob = stats.ttest_ind(ah_sample, epidemic_sample)
+        # print(f"Equal variance (Student's t-test): P-value = {prob}")
         t, prob = stats.ttest_ind(ah_sample, epidemic_sample, equal_var=False)
         print(f"Not equal variance (Welch’s t-test): P-value = {prob}")
         print()
