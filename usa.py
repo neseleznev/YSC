@@ -466,6 +466,56 @@ def stats_joint():
         print()
 
 
+def stats_regions():
+    winter = Winter()
+    # if params[1] in [10, 12, 1, 3, 5]:
+    #     last_day = 31
+    # elif params[1] in [9, 11, 4]:
+    #     last_day = 30
+    winter.START = datetime.date(winter.START.year, 10, 1)
+    winter.END = datetime.date(winter.END.year, 3, 31)
+
+    state_resolver = get_state_resolver(STATE_CODES_FILE)
+    ah = get_ah(AH_CSV_FILE)
+    ah_mean = get_ah_mean(ah)
+    ah_dev = get_ah_deviation(ah, ah_mean)
+
+    excess_data = get_mortality_excess(MORTALITY_EXCESS_FILE)
+    onsets = get_onsets(excess_data, THRESHOLDS, winter)
+    years = range(1972, 2002)
+
+    # For regions
+    threshold = THRESHOLDS[-1]  # The strongest 0.02
+    regions = {'sw': SW_STATES,
+               'ne': NE_STATES,
+               'gulf': GULF_STATES,
+               'the_rest': REST_STATES}
+
+    for region_name, region in regions.items():
+        generate_control_sample(onsets, threshold, ah_dev, winter, region, state_resolver, years,
+                                filename=f'results/stats/usa/regions/control.{region_name}.{threshold}.json')
+        generate_experimental_sample(onsets, threshold, ah_dev, winter, region, state_resolver,
+                                     filename=f'results/stats/usa/regions/experimental.{region_name}.{threshold}.json')
+
+    for region_name, region in regions.items():
+        try:
+            with open(f'results/stats/usa/regions/control.{region_name}.{threshold}.json', 'r') as f:
+                ah_sample = json.load(f)
+            with open(f'results/stats/usa/regions/experimental.{region_name}.{threshold}.json', 'r') as f:
+                epidemic_sample = json.load(f)
+        except:
+            continue
+
+        print(f'Region {region_name} ({len(region)} states)')
+        print(f"AH' sample size = {len(ah_sample)}")
+        print(f"Epidemic sample size = {len(epidemic_sample)}")
+        # t, prob = stats.ttest_ind(ah_sample, epidemic_sample)
+        # print(f"Equal variance (Student's t-test): P-value = {prob}")
+        t, prob = stats.ttest_ind(ah_sample, epidemic_sample, equal_var=False)
+        print(f"Not equal variance (Welch’s t-test): P-value = {prob}")
+        print()
+
+
 if __name__ == '__main__':
     t0 = time.time()
     # test_parser()
@@ -475,5 +525,6 @@ if __name__ == '__main__':
     # main()
     # stats_all_country()
     # stats_distinct_states()
-    stats_joint()
+    # stats_joint()
+    stats_regions()
     print('Time elapsed: %.2f sec' % (time.time() - t0))
