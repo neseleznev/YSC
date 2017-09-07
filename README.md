@@ -6,6 +6,14 @@ Contributions are highly appreciated.
 Take a look at the bottom of `usa.py` and `russia.py` in order to
 launch experiments.
 
+This repo also includes paper sources and all required graphs,
+showing the results for Russia, France, and USA.
+
+<p align="center">
+  <img src="paper/graphs/usa_top.png" width="350" height="225"/>
+  <img src="paper/graphs/ile_de_france.png" width="150" height="110"/>
+</p>
+
 ## Installation
 
 We recommend you to use a virtual environment for this project.
